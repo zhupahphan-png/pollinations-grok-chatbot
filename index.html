@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pollinations Grok Chatbot</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+    }
+    .card {
+      max-width: 900px;
+      margin: auto;
+      background: #111827;
+      border-radius: 18px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    .muted { color: #94a3b8; font-size: 13px; margin-bottom: 10px; }
+
+    input, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0b1220;
+      color: #e2e8f0;
+      outline: none;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #22c55e;
+      border: none;
+      color: #052e16;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .chat {
+      margin-top: 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0b1220;
+      padding: 12px;
+      min-height: 260px;
+      max-height: 480px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .msg { margin: 10px 0; }
+    .user { color: #93c5fd; }
+    .bot { color: #bbf7d0; }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .row button {
+      flex: 1;
+      background: #334155;
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>💬 Grok 4 Fast (via Pollinations)</h1>
+  <div class="muted">
+    Model: <b>grok</b> ✅ | Endpoint: <b>gen.pollinations.ai</b>
+  </div>
+
+  <label>🔑 Pollinations API Key (pk_ or sk_)</label>
+  <input id="key" type="password" placeholder="Paste your Pollinations API key here..." />
+
+  <div id="chat" class="chat"></div>
+
+  <label>✍️ Your message</label>
+  <textarea id="msg" rows="3" placeholder="Type message..."></textarea>
+
+  <button id="sendBtn" onclick="sendMsg()">Send</button>
+
+  <div class="row">
+    <button onclick="clearChat()">Clear Chat</button>
+    <button onclick="copyChat()">Copy Chat</button>
+  </div>
+</div>
+
+<script>
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You are Grok 4 Fast. Be smart, direct, and helpful. Keep responses clean and safe."
+    }
+  ];
+
+  function addToChat(role, text) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = "msg " + (role === "user" ? "user" : "bot");
+    div.textContent = (role === "user" ? "You: " : "AI: ") + text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function sendMsg() {
+    const key = document.getElementById("key").value.trim();
+    const input = document.getElementById("msg").value.trim();
+    const sendBtn = document.getElementById("sendBtn");
+
+    if (!key) { alert("Paste your Pollinations API key first 🙂"); return; }
+    if (!input) { alert("Type a message 🙂"); return; }
+
+    document.getElementById("msg").value = "";
+
+    addToChat("user", input);
+    messages.push({ role: "user", content: input });
+
+    sendBtn.disabled = true;
+    addToChat("assistant", "⏳ thinking...");
+
+    try {
+      const res = await fetch("https://gen.pollinations.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + key,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "grok",          // ✅ Grok 4 Fast
+          messages: messages,
+          temperature: 0.6
+        })
+      });
+
+      const data = await res.json();
+
+      // remove thinking...
+      const chat = document.getElementById("chat");
+      chat.removeChild(chat.lastChild);
+
+      const reply = data?.choices?.[0]?.message?.content;
+
+      if (!reply) {
+        const reason = data?.choices?.[0]?.finish_reason;
+        if (reason === "content_filter") {
+          addToChat("assistant", "⚠️ Blocked by safety filter. Try different words.");
+        } else {
+          addToChat("assistant", "❌ Error:\n" + JSON.stringify(data, null, 2));
+        }
+        sendBtn.disabled = false;
+        return;
+      }
+
+      addToChat("assistant", reply);
+      messages.push({ role: "assistant", content: reply });
+
+    } catch (e) {
+      const chat = document.getElementById("chat");
+      chat.removeChild(chat.lastChild);
+      addToChat("assistant", "❌ Network error: " + e);
+    }
+
+    sendBtn.disabled = false;
+  }
+
+  function clearChat() {
+    const chat = document.getElementById("chat");
+    chat.innerHTML = "";
+    messages.length = 0;
+    messages.push({
+      role: "system",
+      content:
+        "You are Grok 4 Fast. Be smart, direct, and helpful. Keep responses clean and safe."
+    });
+  }
+
+  function copyChat() {
+    const chatText = document.getElementById("chat").innerText;
+    navigator.clipboard.writeText(chatText);
+    alert("✅ Chat copied!");
+  }
+</script>
+
+</body>
+</html>
